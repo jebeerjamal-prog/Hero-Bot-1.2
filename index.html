@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full w-full overflow-hidden">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hero Homework Helper Hub</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script>
+tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } };
+</script>
+<style>
+  body { background:#0b1120; color:#f8fafc; touch-action:manipulation; -webkit-user-select:none; user-select:none; }
+  #robotContainer { cursor:pointer; }
+  /* Size to the screen height so everything fits a 10" tablet (landscape or portrait) */
+  #robotContainer { width:min(20vh,9rem); height:min(20vh,9rem); }
+  #talkBtn { height:clamp(48px,9vh,80px); }
+  @media (max-height:640px) {
+    body { padding:8px !important; gap:8px !important; }
+    main, main > section { gap:8px !important; }
+    main > section { padding:8px !important; }
+    header { min-height:44px !important; padding-top:4px !important; padding-bottom:4px !important; }
+    #talkBtn { font-size:1rem !important; }
+    #micIconWrapper { width:2rem !important; height:2rem !important; }
+    .subject-btn { padding:6px !important; }
+    .subject-btn i { font-size:1rem !important; margin-bottom:0 !important; }
+    #askInput { padding-top:8px !important; padding-bottom:8px !important; }
+  }
+  input { -webkit-user-select:text; user-select:text; }
+  .custom-scrollbar::-webkit-scrollbar { width:6px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background:#3b82f6; border-radius:9999px; }
+  @keyframes robotPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.03)} }
+  .robot-idle { animation: robotPulse 3.5s infinite ease-in-out; }
+  @keyframes speakPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
+  .robot-speaking { animation: speakPulse .8s infinite ease-in-out; }
+  @keyframes starPop { 0%{transform:scale(.5) rotate(-20deg);opacity:0} 50%{transform:scale(1.4) rotate(10deg)} 100%{transform:scale(1) rotate(0);opacity:1} }
+  .star-animated { animation: starPop .5s cubic-bezier(.175,.885,.32,1.275); }
+  @keyframes micPulse { 0%{box-shadow:0 0 0 0 rgba(239,68,68,.7)} 70%{box-shadow:0 0 0 20px rgba(239,68,68,0)} 100%{box-shadow:0 0 0 0 rgba(239,68,68,0)} }
+  .mic-active { animation: micPulse 1.5s infinite; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+</style>
+</head>
+<body class="h-[100dvh] w-screen flex flex-col gap-3 p-3 md:p-4 overflow-hidden antialiased font-sans">
+
+<!-- TOP BAR -->
+<header class="min-h-[56px] w-full bg-slate-900/90 border border-slate-800 rounded-2xl px-4 py-2 flex items-center justify-between shadow-lg shrink-0">
+  <div class="flex items-center space-x-3">
+    <div class="bg-gradient-to-tr from-sky-500 to-indigo-600 p-2.5 rounded-xl text-white"><i class="fa-solid fa-robot text-xl" aria-hidden="true"></i></div>
+    <h1 class="text-lg md:text-xl font-extrabold tracking-tight text-sky-300">Hero Helper</h1>
+  </div>
+  <div class="flex items-center space-x-3 md:space-x-6">
+    <div class="flex items-center space-x-2 bg-slate-800/90 border border-amber-500/30 px-3.5 py-1.5 rounded-full" aria-live="polite">
+      <i id="starIcon" class="fa-solid fa-star text-amber-400 text-lg" aria-hidden="true"></i>
+      <span class="sr-only">Stars:</span>
+      <span id="starCount" class="text-lg font-black text-amber-300">0</span>
+    </div>
+    <button id="timerBtn" aria-label="Pause or resume study timer" class="flex items-center space-x-2 bg-slate-800/90 border border-indigo-500/30 px-3.5 py-1.5 rounded-full active:scale-95">
+      <i id="timerIcon" class="fa-solid fa-stopwatch text-indigo-400 text-lg" aria-hidden="true"></i>
+      <span id="timerDisplay" class="text-base md:text-lg font-extrabold text-indigo-200 tracking-wider">15:00</span>
+    </button>
+  </div>
+  <button id="openApiModalBtn" aria-label="Grown-up settings" class="p-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl active:scale-95">
+    <i class="fa-solid fa-gear text-lg" aria-hidden="true"></i>
+  </button>
+</header>
+
+<!-- MAIN -->
+<main class="flex-1 min-h-0 w-full flex flex-col landscape:flex-row gap-3">
+
+  <!-- Left: avatar + subjects -->
+  <section class="w-full landscape:w-[30%] landscape:h-full shrink-0 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3 flex flex-row landscape:flex-col gap-3">
+    <div class="flex flex-1 min-h-0 flex-col items-center justify-center relative bg-slate-900/80 border border-slate-800 rounded-xl p-2">
+      <div id="robotStatusBadge" class="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-sky-500/20 text-sky-300 border border-sky-500/30">Ready to Help</div>
+      <div id="robotContainer" role="button" tabindex="0" aria-label="Tap Hero to hear his introduction" class="robot-idle w-28 h-28 lg:w-36 lg:h-36 flex items-center justify-center">
+        <svg class="w-full h-full" viewBox="0 0 200 200" fill="none" aria-hidden="true">
+          <line x1="100" y1="35" x2="100" y2="15" stroke="#38bdf8" stroke-width="6" stroke-linecap="round"/>
+          <circle cx="100" cy="12" r="8" fill="#facc15"/>
+          <rect x="25" y="65" width="15" height="30" rx="6" fill="#334155"/>
+          <rect x="160" y="65" width="15" height="30" rx="6" fill="#334155"/>
+          <rect x="35" y="40" width="130" height="90" rx="24" fill="#1e293b" stroke="#38bdf8" stroke-width="5"/>
+          <rect x="48" y="52" width="104" height="66" rx="16" fill="#0f172a"/>
+          <circle cx="75" cy="80" r="12" fill="#38bdf8"/><circle cx="125" cy="80" r="12" fill="#38bdf8"/>
+          <circle cx="78" cy="77" r="4" fill="#fff"/><circle cx="128" cy="77" r="4" fill="#fff"/>
+          <path id="robotMouth" d="M 80 102 Q 100 112 120 102" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" fill="none"/>
+          <path d="M 75 130 L 125 130 L 135 160 L 65 160 Z" fill="#334155"/>
+          <circle cx="100" cy="148" r="6" fill="#22c55e"/>
+        </svg>
+      </div>
+      <h2 class="text-base font-extrabold text-slate-100">Hero Bot</h2>
+      <p id="activeSubjectText" class="text-xs text-sky-400 font-bold">Math Helper</p>
+    </div>
+    <div class="grid grid-cols-2 gap-2 shrink-0 w-1/2 landscape:w-full">
+      <button data-subject="Math Helper" class="subject-btn p-2 md:p-3 rounded-xl border-2 border-sky-400 bg-sky-500/20 text-sky-200 flex flex-col items-center active:scale-95"><i class="fa-solid fa-calculator text-xl mb-1 text-sky-400" aria-hidden="true"></i><span class="text-xs font-bold">Math</span></button>
+      <button data-subject="Phonics & Spelling" class="subject-btn p-2 md:p-3 rounded-xl border-2 border-slate-700 bg-slate-800/80 text-slate-300 flex flex-col items-center active:scale-95"><i class="fa-solid fa-spell-check text-xl mb-1 text-pink-400" aria-hidden="true"></i><span class="text-xs font-bold">Phonics</span></button>
+      <button data-subject="Science Explorer" class="subject-btn p-2 md:p-3 rounded-xl border-2 border-slate-700 bg-slate-800/80 text-slate-300 flex flex-col items-center active:scale-95"><i class="fa-solid fa-flask-vial text-xl mb-1 text-emerald-400" aria-hidden="true"></i><span class="text-xs font-bold">Science</span></button>
+      <button data-subject="Story Time" class="subject-btn p-2 md:p-3 rounded-xl border-2 border-slate-700 bg-slate-800/80 text-slate-300 flex flex-col items-center active:scale-95"><i class="fa-solid fa-book-open-reader text-xl mb-1 text-amber-400" aria-hidden="true"></i><span class="text-xs font-bold">Story</span></button>
+    </div>
+  </section>
+
+  <!-- Right: conversation -->
+  <section class="flex-1 min-h-0 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3 flex flex-col gap-3">
+    <div class="bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 flex items-center justify-between shrink-0">
+      <p id="liveSubtitle" class="text-xs md:text-sm text-slate-300 font-medium truncate" aria-live="polite">Ask a homework question!</p>
+      <div id="visualizerContainer" class="flex items-center space-x-1 h-5 shrink-0 ml-2" aria-hidden="true">
+        <div class="w-1 bg-sky-400 rounded-full h-2"></div><div class="w-1 bg-sky-400 rounded-full h-4"></div><div class="w-1 bg-sky-400 rounded-full h-3"></div><div class="w-1 bg-sky-400 rounded-full h-5"></div><div class="w-1 bg-sky-400 rounded-full h-2"></div>
+      </div>
+    </div>
+
+    <div id="conversationFeed" class="flex-1 min-h-[80px] bg-slate-950/50 border border-slate-800/80 rounded-xl p-3 overflow-y-auto custom-scrollbar flex flex-col space-y-3" aria-live="polite"></div>
+
+    <!-- Typed input (always available) -->
+    <form id="askForm" class="flex gap-2 shrink-0">
+      <input id="askInput" type="text" autocomplete="off" maxlength="200" placeholder="Type your question here..." aria-label="Type your question" class="flex-1 min-w-0 bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-xl px-4 py-3 text-base text-slate-100 outline-none" />
+      <button type="submit" aria-label="Send question" class="px-5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold rounded-xl active:scale-95"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i></button>
+    </form>
+
+    <button id="talkBtn" class="w-full h-16 md:h-20 shrink-0 bg-gradient-to-r from-sky-500 via-indigo-500 to-sky-600 active:scale-[0.99] text-white font-extrabold rounded-2xl shadow-lg flex items-center justify-center space-x-3 text-lg md:text-xl border border-sky-300/30">
+      <div id="micIconWrapper" class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"><i class="fa-solid fa-microphone text-xl" aria-hidden="true"></i></div>
+      <span id="talkBtnText">Talk to Hero</span>
+    </button>
+  </section>
+</main>
+
+<!-- Settings modal (behind parent gate) -->
+<div id="apiModal" class="fixed inset-0 bg-slate-950/80 flex items-center justify-center z-50 hidden p-4" role="dialog" aria-modal="true" aria-labelledby="apiTitle">
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-5 shadow-2xl relative max-h-[92dvh] overflow-y-auto">
+    <button id="closeApiModalBtn" aria-label="Close settings" class="absolute top-4 right-4 text-slate-400 hover:text-slate-200 text-lg"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+    <h3 id="apiTitle" class="text-lg font-extrabold text-slate-100 mb-3"><i class="fa-solid fa-key text-amber-400 mr-2" aria-hidden="true"></i>Grown-up settings</h3>
+    <p class="text-xs text-slate-400 mb-4 leading-relaxed">Enter a Gemini API key to power answers. Without one, Hero can't answer questions. Questions are sent to Google's Gemini service.</p>
+    <label for="apiKeyInput" class="text-xs font-bold text-slate-300 block mb-1">API key</label>
+    <input type="password" id="apiKeyInput" placeholder="AIzaSy..." class="w-full bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 outline-none mb-3" />
+    <label for="modelInput" class="text-xs font-bold text-slate-300 block mb-1">Preferred model (free fallbacks are tried automatically)</label>
+    <input type="text" id="modelInput" class="w-full bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 outline-none mb-3" />
+    <label for="voiceSelect" class="text-xs font-bold text-slate-300 block mb-1">Voice</label>
+    <select id="voiceSelect" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-100 mb-3"></select>
+    <button id="demoStarBtn" class="text-xs text-amber-300 underline mb-4">Give a bonus star</button>
+    <div class="flex justify-end space-x-2">
+      <button id="clearApiKeyBtn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl">Clear key</button>
+      <button id="saveApiKeyBtn" class="px-5 py-2 bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-extrabold rounded-xl">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const state = {
+  stars: 0, studySeconds: 15 * 60, paused: false, subject: 'Math Helper',
+  listening: false, handled: false, busy: false, history: [],
+  apiKey: '', activeModel: '', model: 'gemini-3.6-flash', timer: null, recognition: null, synth: window.speechSynthesis
+};
+try { state.apiKey = localStorage.getItem('gemini_api_key') || ''; state.model = localStorage.getItem('gemini_model') || state.model; } catch (e) {}
+
+const IDLE_BADGE = "absolute top-2.5 left-2.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-sky-500/20 text-sky-300 border border-sky-500/30";
+const LISTEN_BADGE = "absolute top-2.5 left-2.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-rose-500/20 text-rose-300 border border-rose-500/30";
+const TALK_IDLE = "w-full h-16 md:h-20 shrink-0 bg-gradient-to-r from-sky-500 via-indigo-500 to-sky-600 active:scale-[0.99] text-white font-extrabold rounded-2xl shadow-lg flex items-center justify-center space-x-3 text-lg md:text-xl border border-sky-300/30";
+const TALK_LIVE = "w-full h-16 md:h-20 shrink-0 bg-gradient-to-r from-rose-500 to-rose-600 text-white font-extrabold rounded-2xl shadow-lg flex items-center justify-center space-x-3 text-lg md:text-xl border border-rose-300/30 mic-active";
+
+/* ---------- Stars ---------- */
+function addStar() {
+  state.stars++;
+  $('starCount').textContent = state.stars;
+  $('starIcon').classList.remove('star-animated');
+  void $('starIcon').offsetWidth;
+  $('starIcon').classList.add('star-animated');
+}
+
+/* ---------- Timer (click to pause/resume; stops at 0) ---------- */
+function renderTimer() {
+  const m = Math.floor(state.studySeconds / 60), s = state.studySeconds % 60;
+  $('timerDisplay').textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+function startTimer() {
+  clearInterval(state.timer);
+  state.timer = setInterval(() => {
+    if (state.paused || state.studySeconds <= 0) return;
+    state.studySeconds--;
+    renderTimer();
+    if (state.studySeconds === 0) {
+      clearInterval(state.timer);
+      const msg = "Great job! Study time is done. Time for a break!";
+      addMessage('Hero', msg, 'hero');
+      setSubtitle(msg);
+      speak(msg);
+    }
+  }, 1000);
+}
+$('timerBtn').addEventListener('click', () => {
+  if (state.studySeconds <= 0) { state.studySeconds = 15 * 60; state.paused = false; renderTimer(); startTimer(); }
+  else state.paused = !state.paused;
+  $('timerIcon').className = 'fa-solid text-indigo-400 text-lg ' + (state.paused ? 'fa-pause' : 'fa-stopwatch');
+});
+
+/* ---------- Subjects ---------- */
+const subjectBtns = document.querySelectorAll('.subject-btn');
+subjectBtns.forEach(btn => btn.addEventListener('click', () => {
+  subjectBtns.forEach(b => b.className = b.className
+    .replace('border-sky-400 bg-sky-500/20 text-sky-200', 'border-slate-700 bg-slate-800/80 text-slate-300'));
+  btn.className = btn.className.replace('border-slate-700 bg-slate-800/80 text-slate-300', 'border-sky-400 bg-sky-500/20 text-sky-200');
+  state.subject = btn.dataset.subject;
+  state.history = [];
+  $('activeSubjectText').textContent = state.subject;
+  const msg = 'Switched to ' + state.subject + '! What is your question?';
+  addMessage('Hero', msg, 'hero');
+  speak(msg);
+}));
+
+/* ---------- Safe message rendering (textContent only) ---------- */
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function addMessage(sender, text, type) {
+  const hero = type === 'hero';
+  const row = el('div', 'flex items-start space-x-3 max-w-[90%] star-animated ' + (hero ? 'self-start' : 'self-end flex-row-reverse space-x-reverse'));
+  const avatar = el('div', 'w-8 h-8 rounded-full flex items-center justify-center shrink-0 border ' + (hero ? 'bg-sky-500/20 border-sky-400/40' : 'bg-pink-500/20 border-pink-400/40'));
+  avatar.appendChild(el('i', 'fa-solid text-xs ' + (hero ? 'fa-robot text-sky-400' : 'fa-child text-pink-400')));
+  const bubble = el('div', 'rounded-2xl p-3 shadow-md border ' + (hero ? 'bg-slate-800/90 border-slate-700/80 rounded-tl-none' : 'bg-indigo-900/40 border-indigo-700/60 rounded-tr-none'));
+  bubble.appendChild(el('div', 'text-xs font-extrabold mb-1 ' + (hero ? 'text-sky-400' : 'text-pink-400'), sender));
+  bubble.appendChild(el('p', 'text-sm text-slate-100 leading-relaxed', text));
+  row.append(avatar, bubble);
+  $('conversationFeed').appendChild(row);
+  $('conversationFeed').scrollTop = $('conversationFeed').scrollHeight;
+}
+function setSubtitle(t) { $('liveSubtitle').textContent = t; }
+
+/* ---------- Speech output (strip markdown + emoji) ---------- */
+function cleanForSpeech(t) {
+  return t.replace(/[*_#`>~]/g, '').replace(/\p{Extended_Pictographic}/gu, '').replace(/\s+/g, ' ').trim();
+}
+const INTRO = "Hi, I am Hero, Homework Expert Robot Organizer. I help with your studies and homework!";
+function introduce() {
+  addMessage('Hero', INTRO, 'hero');
+  setSubtitle(INTRO);
+  speak(INTRO);
+}
+let voicePick = null;
+// Browsers don't report gender, so we recognise common male voice names.
+const isMale = v => /\bmale\b(?!.*female)|david|mark|guy|daniel|alex|fred|ryan|eric|matthew|aaron|arthur|gordon|james|george|thomas|oliver|rishi|liam|brian|christopher|roger|steffan|ronan|william/i.test(v.name) && !/female|zira|samantha|aria|jenny|susan|hazel|karen|moira|tessa|fiona|libby|sonia|emma|michelle|ana|natasha/i.test(v.name);
+function englishVoices() { return state.synth ? state.synth.getVoices().filter(v => /^en/i.test(v.lang)) : []; }
+function pickVoice() {
+  const en = englishVoices();
+  let saved = ''; try { saved = localStorage.getItem('hero_voice') || ''; } catch (e) {}
+  voicePick = en.find(v => v.name === saved) ||
+    en.find(v => isMale(v) && /en[-_]US/i.test(v.lang)) || en.find(isMale) ||
+    en.find(v => /en[-_]US/i.test(v.lang)) || en[0] || null;
+}
+function populateVoices() {
+  const sel = $('voiceSelect'); sel.textContent = '';
+  const en = englishVoices();
+  if (!en.length) { sel.appendChild(el('option', '', 'Default voice')); return; }
+  en.forEach(v => { const o = el('option', '', v.name + ' (' + v.lang + ')'); o.value = v.name; if (voicePick && v.name === voicePick.name) o.selected = true; sel.appendChild(o); });
+}
+function speak(text) {
+  if (!state.synth) return;
+  state.synth.cancel();
+  const u = new SpeechSynthesisUtterance(cleanForSpeech(text));
+  u.lang = voicePick ? voicePick.lang : 'en-US';
+  if (voicePick) u.voice = voicePick;
+  u.pitch = (voicePick && isMale(voicePick)) ? 1.0 : 0.7; u.rate = 0.85; u.volume = 1; // natural pitch and slower pace = clearer
+  u.onstart = () => {
+    $('robotContainer').className = 'robot-speaking w-28 h-28 lg:w-36 lg:h-36 flex items-center justify-center';
+    $('robotMouth').setAttribute('d', 'M 75 102 Q 100 120 125 102 Q 100 95 75 102');
+    animateVisualizer(true);
+  };
+  u.onend = u.onerror = () => {
+    $('robotContainer').className = 'robot-idle w-28 h-28 lg:w-36 lg:h-36 flex items-center justify-center';
+    $('robotMouth').setAttribute('d', 'M 80 102 Q 100 112 120 102');
+    animateVisualizer(false);
+  };
+  state.synth.speak(u);
+}
+
+$('robotContainer').addEventListener('click', introduce);
+$('robotContainer').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); introduce(); } });
+
+/* ---------- Visualizer ---------- */
+let vizInt = null;
+function animateVisualizer(on) {
+  const bars = $('visualizerContainer').querySelectorAll('div');
+  if (on && !vizInt) vizInt = setInterval(() => bars.forEach(b => b.style.height = (Math.floor(Math.random() * 16) + 4) + 'px'), 120);
+  if (!on) { clearInterval(vizInt); vizInt = null; bars.forEach((b, i) => b.style.height = ((i % 3 + 2) * 3) + 'px'); }
+}
+
+/* ---------- Voice recording (WAV) sent to Gemini ---------- */
+function micUnavailable(why) {
+  $('talkBtn').classList.add('hidden');
+  const msg = "I can't use the microphone. Please type your question!";
+  setSubtitle(msg);
+  addMessage('Hero', msg, 'hero');
+  if (why) addMessage('Grown-up info', why, 'hero');
+}
+function setListening(on) {
+  state.listening = on;
+  $('talkBtn').className = on ? TALK_LIVE : TALK_IDLE;
+  $('talkBtnText').textContent = on ? 'Recording... Tap to Send' : 'Talk to Hero';
+  $('robotStatusBadge').textContent = on ? 'Listening...' : 'Ready to Help';
+  $('robotStatusBadge').className = on ? LISTEN_BADGE : IDLE_BADGE;
+  animateVisualizer(on);
+}
+const rec = { ctx: null, stream: null, node: null, chunks: [], rate: 44100, timeout: null };
+
+async function startRecording() {
+  try {
+    if (state.synth) state.synth.cancel();
+    rec.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const AC = window.AudioContext || window.webkitAudioContext;
+    rec.ctx = new AC();
+    rec.rate = rec.ctx.sampleRate;
+    rec.chunks = [];
+    const src = rec.ctx.createMediaStreamSource(rec.stream);
+    rec.node = rec.ctx.createScriptProcessor(4096, 1, 1);
+    rec.node.onaudioprocess = e => rec.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    src.connect(rec.node);
+    rec.node.connect(rec.ctx.destination);
+    setListening(true);
+    setSubtitle('Listening to your question...');
+    rec.timeout = setTimeout(stopRecording, 15000); // max 15 seconds
+  } catch (e) {
+    console.warn(e);
+    micUnavailable(e.name === 'NotAllowedError'
+      ? 'Microphone permission was denied. Allow it in the browser/site settings.'
+      : 'Could not start the microphone: ' + e.name);
+  }
+}
+function stopRecording() {
+  clearTimeout(rec.timeout);
+  try { rec.node.disconnect(); rec.stream.getTracks().forEach(t => t.stop()); rec.ctx.close(); } catch (e) {}
+  setListening(false);
+  const wav = encodeWav(rec.chunks, rec.rate);
+  rec.chunks = [];
+  if (!wav) { setSubtitle("I didn't hear anything. Tap and try again, or type it!"); return; }
+  ask('', wav);
+}
+function encodeWav(chunks, rate) {
+  let len = 0; chunks.forEach(c => len += c.length);
+  if (len < rate * 0.5) return null; // under half a second
+  const all = new Float32Array(len); let o = 0;
+  chunks.forEach(c => { all.set(c, o); o += c.length; });
+  const target = 16000, ratio = rate / target, n = Math.floor(len / ratio);
+  const pcm = new Int16Array(n); let peak = 0;
+  for (let i = 0; i < n; i++) {
+    const s0 = Math.floor(i * ratio), s1 = Math.max(s0 + 1, Math.floor((i + 1) * ratio));
+    let sum = 0; for (let j = s0; j < s1 && j < len; j++) sum += all[j];
+    const v = Math.max(-1, Math.min(1, sum / (s1 - s0)));
+    peak = Math.max(peak, Math.abs(v));
+    pcm[i] = v * 0x7fff;
+  }
+  if (peak < 0.01) return null; // silence
+  const buf = new ArrayBuffer(44 + n * 2), dv = new DataView(buf);
+  const w = (off, str) => { for (let i = 0; i < str.length; i++) dv.setUint8(off + i, str.charCodeAt(i)); };
+  w(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, target, true); dv.setUint32(28, target * 2, true);
+  dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); w(36, 'data'); dv.setUint32(40, n * 2, true);
+  new Int16Array(buf, 44).set(pcm);
+  const bytes = new Uint8Array(buf); let bin = '';
+  for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+  return btoa(bin);
+}
+$('talkBtn').addEventListener('click', () => {
+  if (state.busy) return;
+  if (!navigator.mediaDevices || !window.isSecureContext) {
+    return micUnavailable('Recording needs an https:// page (or localhost) and a browser with microphone support.');
+  }
+  state.listening ? stopRecording() : startRecording();
+});
+$('askForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const q = $('askInput').value.trim();
+  if (!q) return;
+  $('askInput').value = '';
+  ask(q);
+});
+
+/* ---------- Gemini ---------- */
+const SAFETY = ['HARM_CATEGORY_HARASSMENT', 'HARM_CATEGORY_HATE_SPEECH', 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'HARM_CATEGORY_DANGEROUS_CONTENT']
+  .map(category => ({ category, threshold: 'BLOCK_LOW_AND_ABOVE' }));
+
+const FALLBACK_MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview'];
+async function queryGemini(prompt, audio) {
+  // Try the chosen model first; if it is out of quota (429), missing (404) or busy (5xx), try the next free model.
+  const chain = [...new Set([state.activeModel || state.model, state.model, ...FALLBACK_MODELS])];
+  let lastErr;
+  for (const m of chain) {
+    try {
+      const r = await callModel(m, prompt, audio);
+      state.activeModel = m;
+      return r;
+    } catch (e) {
+      lastErr = e;
+      if (!/^HTTP (429|404|500|503)/.test(e.message)) throw e;
+      console.warn('Model ' + m + ' failed, trying next:', e.message);
+    }
+  }
+  throw lastErr;
+}
+async function callModel(model, prompt, audio) {
+  const system = "You are Hero Bot, a friendly, encouraging homework helper for a 6 to 7 year old in Grade 1. " +
+    "Current subject: " + state.subject + ". Use very simple words and short sentences. " +
+    "Do not just give the final answer. Teach HOW to get it in 3 to 5 tiny steps, for example for 5 plus 5: start with 5 fingers on one hand, add 5 fingers from the other hand, count them all one by one, and so we get 10. " +
+    "Use a simple method for the topic (counting objects, fingers, number lines, sounding out letters, or a simple picture in words), then say the answer at the end and encourage the child to try a similar one. " +
+    "Write numbers and symbols as words where natural, such as plus, minus, and equals, so they are read aloud clearly. Keep the whole reply under 70 words. " +
+    "Do not use markdown. You may use one emoji. Only help with schoolwork, learning, and gentle stories. " +
+    "If asked about anything scary, unsafe, personal, or unrelated to learning, kindly say you can't help with that and tell the child to ask a grown-up they trust. " +
+    "Never ask for or repeat personal information such as names, addresses, or phone numbers. " +
+    "If the child asks you to introduce yourself or asks who you are, put exactly this in answer: " + INTRO + " " +
+    "Reply as JSON with two fields: heard (the child's question as text; if it came as audio, write exactly what they said, or an empty string if you could not understand it) and answer (your reply to the child).";
+  const parts = audio
+    ? [{ inlineData: { mimeType: 'audio/wav', data: audio } }, { text: "The child asked this question out loud." }]
+    : [{ text: prompt }];
+  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': state.apiKey },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [...state.history, { role: 'user', parts }],
+      generationConfig: {
+        maxOutputTokens: 1000, temperature: 0.7, responseMimeType: 'application/json',
+        responseSchema: { type: 'OBJECT', properties: { heard: { type: 'STRING' }, answer: { type: 'STRING' } }, required: ['heard', 'answer'] }
+      },
+      safetySettings: SAFETY
+    })
+  });
+  if (!res.ok) {
+    let detail = '';
+    try { detail = (await res.json()).error.message || ''; } catch (e) {}
+    throw new Error('HTTP ' + res.status + (detail ? ': ' + detail : ''));
+  }
+  const data = await res.json();
+  const raw = data.candidates && data.candidates[0] && data.candidates[0].content &&
+    data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+  if (!raw) throw new Error('Empty response');
+  let out;
+  try { out = JSON.parse(raw); } catch (e) { out = { heard: prompt, answer: raw }; }
+  return { heard: (out.heard || '').trim(), answer: (out.answer || '').trim() };
+}
+
+async function ask(question, audio) {
+  question = (question || '').trim();
+  if ((!question && !audio) || state.busy) return;
+  state.busy = true;
+  if (question) addMessage('You', question, 'user');
+  if (question && /\b(introduce|who are you|what are you|your name|what is your name|tell me about yourself)\b/i.test(question)) {
+    introduce(); state.busy = false; return;
+  }
+
+  if (!state.apiKey) {
+    const msg = "I'm not set up yet. Please ask a grown-up to add my key in settings.";
+    addMessage('Hero', msg, 'hero'); setSubtitle(msg); speak(msg);
+    state.busy = false; return;
+  }
+  setSubtitle('Hero is thinking...');
+  try {
+    const { heard, answer } = await queryGemini(question, audio);
+    if (audio) {
+      if (!heard) {
+        const msg = "I didn't catch that. Tap and try again, or type it!";
+        addMessage('Hero', msg, 'hero'); setSubtitle(msg); speak(msg);
+        return;
+      }
+      addMessage('You', heard, 'user');
+    }
+    if (!answer) throw new Error('Empty answer');
+    state.history.push({ role: 'user', parts: [{ text: heard || question }] }, { role: 'model', parts: [{ text: answer }] });
+    state.history = state.history.slice(-8);
+    addMessage('Hero', answer, 'hero');
+    setSubtitle(answer);
+    speak(answer);
+    addStar(); // only for real answers
+  } catch (err) {
+    console.warn(err);
+    const msg = "I couldn't connect. Please try again in a moment.";
+    addMessage('Hero', msg, 'hero'); speak(msg);
+    const why = err.message === 'Failed to fetch' ? 'No internet, or the request was blocked' : err.message;
+    setSubtitle('Grown-up info: ' + why);
+    addMessage('Grown-up info', why, 'hero');
+  } finally {
+    state.busy = false;
+  }
+}
+
+/* ---------- Settings behind a parent gate ---------- */
+$('openApiModalBtn').addEventListener('click', () => {
+  const a = 12 + Math.floor(Math.random() * 8), b = 6 + Math.floor(Math.random() * 4);
+  const ans = window.prompt('Grown-ups only. What is ' + a + ' + ' + b + '?');
+  if (ans === null || parseInt(ans, 10) !== a + b) return;
+  $('apiKeyInput').value = state.apiKey;
+  $('modelInput').value = state.model;
+  populateVoices();
+  $('apiModal').classList.remove('hidden');
+});
+$('closeApiModalBtn').addEventListener('click', () => $('apiModal').classList.add('hidden'));
+$('saveApiKeyBtn').addEventListener('click', () => {
+  state.apiKey = $('apiKeyInput').value.trim();
+  state.model = $('modelInput').value.trim() || 'gemini-3.6-flash';
+  try { localStorage.setItem('gemini_api_key', state.apiKey); localStorage.setItem('gemini_model', state.model); } catch (e) {}
+  $('apiModal').classList.add('hidden');
+});
+$('clearApiKeyBtn').addEventListener('click', () => {
+  state.apiKey = ''; $('apiKeyInput').value = '';
+  try { localStorage.removeItem('gemini_api_key'); } catch (e) {}
+  $('apiModal').classList.add('hidden');
+});
+$('voiceSelect').addEventListener('change', () => {
+  try { localStorage.setItem('hero_voice', $('voiceSelect').value); } catch (e) {}
+  pickVoice(); speak('Hi, I am Hero!');
+});
+$('demoStarBtn').addEventListener('click', addStar);
+
+/* ---------- Init ---------- */
+window.addEventListener('load', () => {
+  addMessage('Hero', INTRO + ' Tap me to hear it again, or ask a Math, Phonics, Science, or Story question!', 'hero');
+  if (state.synth) { state.synth.onvoiceschanged = pickVoice; pickVoice(); }
+  renderTimer(); startTimer();
+  if (!navigator.mediaDevices || !window.isSecureContext) micUnavailable('Recording needs an https:// page and a browser with microphone support.');
+});
+</script>
+</body>
+</html>
